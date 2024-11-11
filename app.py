@@ -1,6 +1,6 @@
 import streamlit as st
 from PyPDF2 import PdfReader
-from llama_index import Document, ServiceContext
+from llama_index import ServiceContext, VectorStoreIndex
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.extractors import (
     SummaryExtractor,
@@ -9,7 +9,7 @@ from llama_index.core.extractors import (
     KeywordExtractor,
 )
 from llama_index.extractors.entity import EntityExtractor
-from llama_index import VectorStoreIndex
+from llama_index import Node  # Use Node instead of Document
 
 # Function to extract text from PDF
 def extract_text_from_pdf(file):
@@ -21,8 +21,8 @@ def extract_text_from_pdf(file):
 
 # Function to apply transformations and extract summary
 def extract_summary(text):
-    # Create Document from text
-    documents = [Document(text)]
+    # Create Node from text (no longer using Document)
+    nodes = [Node(text)]
     
     # Set up the LlamaIndex service context
     service_context = ServiceContext.from_defaults()
@@ -38,7 +38,7 @@ def extract_summary(text):
     ]
     
     # Create an index with the transformations
-    index = VectorStoreIndex.from_documents(documents, service_context=service_context)
+    index = VectorStoreIndex.from_nodes(nodes, service_context=service_context)
     
     # Apply transformations to the index and extract summary
     summary_result = index.extract_with_transformations(transformations)
