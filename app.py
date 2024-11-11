@@ -2,18 +2,13 @@ import streamlit as st
 from pathlib import Path
 from typing import List
 from pydantic import BaseModel
-from openai import AzureOpenAI
-import PyPDF2
+from llama_index.core.llms import ChatMessage  # Import ChatMessage
+from your_module import SummaryExtractor, TextNode, BaseNode  # Adjust to your imports
+from your_module.llm import LLM  # Your LLM module (if necessary)
 
-# Initialize Azure OpenAI client
-client = AzureOpenAI(  
-    azure_endpoint="https://uswest3daniel.openai.azure.com",  
-    api_key="fcb2ce5dc289487fad0f6674a0b35312",  
-    api_version="2024-10-01-preview",
-)  
-
-# Define a simple PDF extraction function
+# Define a simple PDF or text extraction function
 def extract_text_from_pdf(pdf_path: Path) -> str:
+    import PyPDF2
     with open(pdf_path, "rb") as file:
         reader = PyPDF2.PdfReader(file)
         text = ""
@@ -21,9 +16,9 @@ def extract_text_from_pdf(pdf_path: Path) -> str:
             text += page.extract_text()
     return text
 
-# Function to split text into sections (can be enhanced)
+# Function to split the text into sections (this is a simple split by paragraphs)
 def split_into_sections(text: str) -> List[str]:
-    return text.split("\n\n")  # Split by double line breaks (or paragraphs)
+    return text.split("\n\n")  # Split sections by double line breaks or paragraphs
 
 # Initialize the Streamlit app
 st.title("Document Summary Extractor")
@@ -47,30 +42,32 @@ if uploaded_file:
     st.write("First section of the document:")
     st.write(sections[0])
 
-    # Function to call Azure OpenAI API for summaries
-    def get_summary_from_azure(section: str) -> str:
-        messages = [{"role": "user", "content": f"Summarize this section: {section}"}]
-        response = client.chat.completions.create(  
-            model="GPT-4Omni",  
-            messages=messages,  
-            temperature=0,  
-            max_tokens=4095,  
-            top_p=1
-        )
-        return response.choices[0].message.content.strip()
+    # Define the LLM to use (based on ChatMessage for generating summaries)
+    class CustomLLM:
+        def chat(self, messages):
+            # Here, replace this mock implementation with the actual call to your LLM
+            response = llm.chat([ChatMessage(role="user", content=messages[0]['content'])])
+            return response
 
-    # Extract summaries for each section using Azure OpenAI
-    def extract_summaries(sections: List[str]) -> List[str]:
-        summaries = []
-        for section in sections:
-            summary = get_summary_from_azure(section)
-            summaries.append(summary)
+    # Initialize the SummaryExtractor with the custom LLM
+    llm_instance = CustomLLM()  # Use your actual LLM instance here
+    summary_extractor = SummaryExtractor(
+        llm=llm_instance,
+        summaries=["self", "prev", "next"],  # Extract self, previous, and next summaries
+        prompt_template="Summarize this section: {section}"  # Example template
+    )
+
+    # Extract summaries asynchronously for each section
+    async def extract_summaries():
+        nodes = [TextNode(content=section) for section in sections]  # Create nodes for each section
+        summaries = await summary_extractor.aextract(nodes)  # Extract summaries
         return summaries
 
-    # Button to trigger the extraction of summaries
+    # Button to trigger summary generation
     if st.button("Generate Summaries"):
+        summaries_placeholder = st.empty()  # Display placeholder for summaries
         with st.spinner("Extracting summaries..."):
-            summaries = extract_summaries(sections)
+            summaries = await extract_summaries()
             for i, summary in enumerate(summaries):
                 st.write(f"Section {i+1} Summary:")
                 st.write(summary)
