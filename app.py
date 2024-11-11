@@ -1,71 +1,78 @@
 import streamlit as st
-from PyPDF2 import PdfReader
-from llama_index import VectorStoreIndex
-from llama_index.core.node_parser import SentenceSplitter
-from llama_index.core.extractors import (
-    SummaryExtractor,
-    QuestionsAnsweredExtractor,
-    TitleExtractor,
-    KeywordExtractor,
-)
-from llama_index.extractors.entity import EntityExtractor
-from llama_index import Node  # Use Node instead of Document
+from pathlib import Path
+from typing import List
+from pydantic import BaseModel
+from openai import AzureOpenAI
+import PyPDF2
 
-# Function to extract text from PDF
-def extract_text_from_pdf(file):
-    reader = PdfReader(file)
-    text = ""
-    for page in reader.pages:
-        text += page.extract_text()
+# Initialize Azure OpenAI client
+client = AzureOpenAI(  
+    azure_endpoint="https://uswest3daniel.openai.azure.com",  
+    api_key="fcb2ce5dc289487fad0f6674a0b35312",  
+    api_version="2024-10-01-preview",
+)  
+
+# Define a simple PDF extraction function
+def extract_text_from_pdf(pdf_path: Path) -> str:
+    with open(pdf_path, "rb") as file:
+        reader = PyPDF2.PdfReader(file)
+        text = ""
+        for page in reader.pages:
+            text += page.extract_text()
     return text
 
-# Function to apply transformations and extract summary
-def extract_summary(text):
-    # Create Node from text (no longer using Document)
-    nodes = [Node(text)]
-    
-    # Create a list of transformations
-    transformations = [
-        SentenceSplitter(),
-        TitleExtractor(nodes=5),
-        QuestionsAnsweredExtractor(questions=3),
-        SummaryExtractor(summaries=["prev", "self"]),
-        KeywordExtractor(keywords=10),
-        EntityExtractor(prediction_threshold=0.5),
-    ]
-    
-    # Create an index with the transformations
-    index = VectorStoreIndex.from_nodes(nodes)
-    
-    # Apply transformations to the index and extract summary
-    summary_result = index.extract_with_transformations(transformations)
-    
-    return summary_result.get("summaries", [])
+# Function to split text into sections (can be enhanced)
+def split_into_sections(text: str) -> List[str]:
+    return text.split("\n\n")  # Split by double line breaks (or paragraphs)
 
-# Streamlit app UI
-def main():
-    st.title("PDF Summary Extractor using LlamaIndex")
-    
-    # Upload PDF file
-    uploaded_file = st.file_uploader("Upload a PDF", type="pdf")
-    
-    if uploaded_file is not None:
-        # Extract text from PDF
-        text = extract_text_from_pdf(uploaded_file)
+# Initialize the Streamlit app
+st.title("Document Summary Extractor")
+
+# File upload
+uploaded_file = st.file_uploader("Upload a PDF or Text File", type=["pdf", "txt"])
+
+if uploaded_file:
+    # Process the uploaded file
+    if uploaded_file.type == "application/pdf":
+        st.write("Processing PDF...")
+        document_text = extract_text_from_pdf(uploaded_file)
+    else:
+        st.write("Processing Text File...")
+        document_text = uploaded_file.getvalue().decode("utf-8")
+
+    # Split the document into sections
+    sections = split_into_sections(document_text)
+
+    # Show the first section to the user
+    st.write("First section of the document:")
+    st.write(sections[0])
+
+    # Function to call Azure OpenAI API for summaries
+    def get_summary_from_azure(section: str) -> str:
+        messages = [{"role": "user", "content": f"Summarize this section: {section}"}]
+        response = client.chat.completions.create(  
+            model="GPT-4Omni",  
+            messages=messages,  
+            temperature=0,  
+            max_tokens=4095,  
+            top_p=1
+        )
+        return response.choices[0].message.content.strip()
+
+    # Extract summaries for each section using Azure OpenAI
+    def extract_summaries(sections: List[str]) -> List[str]:
+        summaries = []
+        for section in sections:
+            summary = get_summary_from_azure(section)
+            summaries.append(summary)
+        return summaries
+
+    # Button to trigger the extraction of summaries
+    if st.button("Generate Summaries"):
+        with st.spinner("Extracting summaries..."):
+            summaries = extract_summaries(sections)
+            for i, summary in enumerate(summaries):
+                st.write(f"Section {i+1} Summary:")
+                st.write(summary)
         
-        if text:
-            st.write("Extracting summary...")
-            
-            # Get the summary using the extractor transformations
-            summaries = extract_summary(text)
-            
-            if summaries:
-                st.subheader("Extracted Summary:")
-                st.write("\n".join(summaries))
-            else:
-                st.warning("No summary could be generated.")
-        else:
-            st.warning("No text could be extracted from the PDF.")
-
-if __name__ == "__main__":
-    main()
+    st.write("End of app")
