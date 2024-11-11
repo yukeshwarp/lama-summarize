@@ -1,6 +1,6 @@
 import streamlit as st
 from PyPDF2 import PdfReader
-from llama_index import ServiceContext, VectorStoreIndex
+from llama_index import VectorStoreIndex
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.extractors import (
     SummaryExtractor,
@@ -24,9 +24,6 @@ def extract_summary(text):
     # Create Node from text (no longer using Document)
     nodes = [Node(text)]
     
-    # Set up the LlamaIndex service context
-    service_context = ServiceContext.from_defaults()
-    
     # Create a list of transformations
     transformations = [
         SentenceSplitter(),
@@ -38,7 +35,7 @@ def extract_summary(text):
     ]
     
     # Create an index with the transformations
-    index = VectorStoreIndex.from_nodes(nodes, service_context=service_context)
+    index = VectorStoreIndex.from_nodes(nodes)
     
     # Apply transformations to the index and extract summary
     summary_result = index.extract_with_transformations(transformations)
