@@ -2,12 +2,12 @@ import streamlit as st
 from pathlib import Path
 from typing import List
 from pydantic import BaseModel
-from your_module import SummaryExtractor, TextNode, BaseNode  # Adjust the import to your code structure
-from your_module.llm import LLM  # Adjust the import for your LLM if necessary
+from llama_index import LLM, ServiceContext
+from llama_index.core.llms import ChatMessage
+from llama_index import Node, GPTSimpleVectorIndex
 
 # Define a simple PDF or text extraction function
 def extract_text_from_pdf(pdf_path: Path) -> str:
-    # This can be implemented using libraries like PyMuPDF, PyPDF2, or pdfplumber
     import PyPDF2
     with open(pdf_path, "rb") as file:
         reader = PyPDF2.PdfReader(file)
@@ -26,6 +26,17 @@ st.title("Document Summary Extractor")
 # File upload
 uploaded_file = st.file_uploader("Upload a PDF or Text File", type=["pdf", "txt"])
 
+# Initialize LlamaIndex LLM and ServiceContext
+llm_instance = LLM()  # Initialize the LLM
+service_context = ServiceContext.from_defaults(llm=llm_instance)
+
+# Function to generate summaries using llama_index LLM
+def generate_summary(text: str) -> str:
+    # Use the ChatMessage to interact with the LLM
+    chat_message = ChatMessage(role="user", content=f"Summarize this text: {text}")
+    response = llm_instance.chat([chat_message])  # Pass the message to the LLM
+    return response.content
+
 if uploaded_file:
     # Process the uploaded file
     if uploaded_file.type == "application/pdf":
@@ -42,25 +53,17 @@ if uploaded_file:
     st.write("First section of the document:")
     st.write(sections[0])
 
-    # Initialize the SummaryExtractor with a mock LLM (replace with actual LLM instance)
-    llm_instance = LLM()  # Replace with actual LLM class/instance
-    summary_extractor = SummaryExtractor(
-        llm=llm_instance,
-        summaries=["self", "prev", "next"],  # Extract self, previous, and next summaries
-        prompt_template="Summarize this section: {section}"  # Example template
-    )
-
-    # Synchronous function to extract summaries
-    def extract_summaries():
-        nodes = [TextNode(content=section) for section in sections]  # Create nodes for each section
-        summaries = summary_extractor.aextract(nodes)  # Extract summaries synchronously
-        return summaries
-
-    # Handle the button click and synchronous execution
+    # Generate summaries for each section
     if st.button("Generate Summaries"):
-        summaries = st.empty()  # Display placeholder for summaries
+        summaries = []
         with st.spinner("Extracting summaries..."):
-            summaries_data = extract_summaries()  # Call the synchronous function directly
-            st.write(summaries_data)  # Display the extracted summaries
-        
+            for section in sections:
+                summary = generate_summary(section)  # Generate summary using llama_index LLM
+                summaries.append(summary)
+
+        # Display the summaries
+        for i, summary in enumerate(summaries):
+            st.write(f"Summary of section {i+1}:")
+            st.write(summary)
+
     st.write("End of app")
