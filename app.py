@@ -2,12 +2,12 @@ import streamlit as st
 from pathlib import Path
 from typing import List
 from pydantic import BaseModel
-from llama_index.core.llms import ChatMessage  # Import ChatMessage
-from your_module import SummaryExtractor, TextNode, BaseNode  # Adjust to your imports
-from your_module.llm import LLM  # Your LLM module (if necessary)
+from your_module import SummaryExtractor, TextNode, BaseNode  # Adjust the import to your code structure
+from your_module.llm import LLM  # Adjust the import for your LLM if necessary
 
 # Define a simple PDF or text extraction function
 def extract_text_from_pdf(pdf_path: Path) -> str:
+    # This can be implemented using libraries like PyMuPDF, PyPDF2, or pdfplumber
     import PyPDF2
     with open(pdf_path, "rb") as file:
         reader = PyPDF2.PdfReader(file)
@@ -16,9 +16,9 @@ def extract_text_from_pdf(pdf_path: Path) -> str:
             text += page.extract_text()
     return text
 
-# Function to split the text into sections (this is a simple split by paragraphs)
+# Function to split the text into sections (this is a simple split by paragraphs, can be enhanced)
 def split_into_sections(text: str) -> List[str]:
-    return text.split("\n\n")  # Split sections by double line breaks or paragraphs
+    return text.split("\n\n")  # Split sections by double line breaks or paragraph
 
 # Initialize the Streamlit app
 st.title("Document Summary Extractor")
@@ -42,34 +42,25 @@ if uploaded_file:
     st.write("First section of the document:")
     st.write(sections[0])
 
-    # Define the LLM to use (based on ChatMessage for generating summaries)
-    class CustomLLM:
-        def chat(self, messages):
-            # Here, replace this mock implementation with the actual call to your LLM
-            response = llm.chat([ChatMessage(role="user", content=messages[0]['content'])])
-            return response
-
-    # Initialize the SummaryExtractor with the custom LLM
-    llm_instance = CustomLLM()  # Use your actual LLM instance here
+    # Initialize the SummaryExtractor with a mock LLM (replace with actual LLM instance)
+    llm_instance = LLM()  # Replace with actual LLM class/instance
     summary_extractor = SummaryExtractor(
         llm=llm_instance,
         summaries=["self", "prev", "next"],  # Extract self, previous, and next summaries
         prompt_template="Summarize this section: {section}"  # Example template
     )
 
-    # Extract summaries asynchronously for each section
-    async def extract_summaries():
+    # Synchronous function to extract summaries
+    def extract_summaries():
         nodes = [TextNode(content=section) for section in sections]  # Create nodes for each section
-        summaries = await summary_extractor.aextract(nodes)  # Extract summaries
+        summaries = summary_extractor.aextract(nodes)  # Extract summaries synchronously
         return summaries
 
-    # Button to trigger summary generation
+    # Handle the button click and synchronous execution
     if st.button("Generate Summaries"):
-        summaries_placeholder = st.empty()  # Display placeholder for summaries
+        summaries = st.empty()  # Display placeholder for summaries
         with st.spinner("Extracting summaries..."):
-            summaries = await extract_summaries()
-            for i, summary in enumerate(summaries):
-                st.write(f"Section {i+1} Summary:")
-                st.write(summary)
+            summaries_data = extract_summaries()  # Call the synchronous function directly
+            st.write(summaries_data)  # Display the extracted summaries
         
     st.write("End of app")
